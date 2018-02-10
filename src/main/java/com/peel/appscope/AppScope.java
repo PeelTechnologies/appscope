@@ -40,12 +40,20 @@ public final class AppScope {
     private static String prefsClearOnResetFileName;
     private static String prefsPersistOnResetFileName;
 
+    public static void configure(Context context, Gson gson) {
+    	configure(context, gson,"persistent_props", "config_props");
+    }
+
     public static void configure(Context context, Gson gson, String prefsClearOnResetFileName,
             String prefsPersistOnResetFileName) {
         AppScope.context = context;
         AppScope.gson = gson;
         AppScope.prefsClearOnResetFileName = prefsClearOnResetFileName;
         AppScope.prefsPersistOnResetFileName = prefsPersistOnResetFileName;
+    }
+
+    public static Context context() {
+    	return context;
     }
 
     public static <T> void bind(TypedKey<T> key, T value) {
