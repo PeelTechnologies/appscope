@@ -69,6 +69,12 @@ public final class AppScope {
         }
     }
 
+    public static <R> void bindIfAbsent(TypedKey<R> key, R value) {
+    	if (!has(key)) {
+    		bind(key, value);
+    	}
+    }
+
     private static SharedPreferences getPrefs(boolean configType) {
         if (configType) {
             return context.getSharedPreferences(prefsClearOnResetFileName, Context.MODE_PRIVATE);
@@ -132,10 +138,10 @@ public final class AppScope {
             if (instance == null && key.isPersistable()) { // see if available in prefs
                 SharedPreferences prefs = getPrefs(key.isConfigType());
                 String json = prefs.getString(key.getName(), null);
-                instance = gson.fromJson(json, key.getValueClass());
+                instance = gson.fromJson(json, key.getTypeOfValue());
             }
         }
-        if (instance == null && key.getValueClass() == Boolean.class) {
+        if (instance == null && key.getTypeOfValue() == Boolean.class) {
             return (T) Boolean.FALSE; // default value for Boolean to avoid NPE for flags
         }
         return instance;

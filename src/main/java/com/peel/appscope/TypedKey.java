@@ -15,6 +15,8 @@
  */
 package com.peel.appscope;
 
+import java.lang.reflect.Type;
+
 /**
  * A typed key
  *
@@ -23,8 +25,12 @@ package com.peel.appscope;
  */
 public class TypedKey<T> {
 
+    public static <R> TypedKey<R> of(String name, Type type, boolean config, boolean persist) {
+        return new TypedKey<R>(type, name, config, persist);
+    }
+
     private final String name;
-    private final Class<T> clazz;
+    private final Type type;
     private final boolean config;
     private final boolean persist;
 
@@ -43,7 +49,14 @@ public class TypedKey<T> {
      */
     public TypedKey(String name, Class<T> clazz, boolean config, boolean persist) {
         this.name = name;
-        this.clazz = clazz;
+        this.type = clazz;
+        this.config = config;
+        this.persist = persist;
+    }
+
+    private TypedKey(Type type, String name, boolean config, boolean persist) {
+        this.name = name;
+        this.type = type;
         this.config = config;
         this.persist = persist;
     }
@@ -52,8 +65,8 @@ public class TypedKey<T> {
         return name;
     }
 
-    public Class<T> getValueClass() {
-        return clazz;
+    public Type getTypeOfValue() {
+        return type;
     }
 
     public boolean isConfigType() {
