@@ -25,6 +25,7 @@ import org.junit.Test;
  * @author Inderjeet Singh
  */
 public class AppScopeTest {
+
     @Test
     public void booleanDefaultValueOnGet() {
         TypedKey<Boolean> testKey = new TypedKey<>("testKey",
@@ -34,5 +35,25 @@ public class AppScopeTest {
         AppScope.bind(testKey, true);
         assertTrue(AppScope.get(testKey));
         AppScope.remove(testKey);
+    }
+
+    @Test
+    public void testBind() throws Exception {
+        TypedKey<String> key = new TypedKey<>("userId", String.class, false, false);
+        assertNull(AppScope.get(key));
+        AppScope.bind(key, "19999999999");
+        assertNotNull(AppScope.get(key));
+        assertEquals("19999999999", AppScope.get(key));
+    }
+
+    @Test
+    public void testBindIfNew() throws Exception {
+        TypedKey<String> key = new TypedKey<>("userId", String.class, false, false);
+        AppScope.bind(key, "19999999999");
+        assertEquals("19999999999", AppScope.get(key));
+        AppScope.bindIfAbsent(key, "16506953562");
+        assertNotEquals("19999999999", "16506953562");
+        assertNotEquals("16506953562", AppScope.get(key));
+        assertEquals("19999999999", AppScope.get(key));
     }
 }
