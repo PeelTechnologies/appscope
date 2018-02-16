@@ -15,7 +15,9 @@
  */
 package com.peel.appscope;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -31,6 +33,20 @@ import android.content.SharedPreferences;
  * @author Inderjeet Singh
  */
 public final class AppScope {
+    public interface EventListener {
+        <T> void onBind(TypedKey<T> key, T value);
+        <T> void onRemove(TypedKey<T> key);
+    }
+    private static final List<EventListener> listeners = new ArrayList<>();
+
+    public static void addListener(EventListener listener) {
+        listeners.add(listener);
+    }
+
+    public static void removeListener(EventListener listener) {
+        listeners.remove(listener);
+    }
+
     @SuppressWarnings("rawtypes")
     private static final Map<TypedKey, Object> instances = new ConcurrentHashMap<>();
     @SuppressWarnings("rawtypes")
@@ -67,12 +83,13 @@ public final class AppScope {
                 prefs.edit().putString(key.getName(), json).apply();
             }
         }
+        for (EventListener listener : listeners) listener.onBind(key, value);
     }
 
     public static <R> void bindIfAbsent(TypedKey<R> key, R value) {
-    	if (!has(key)) {
-    		bind(key, value);
-    	}
+        if (!has(key)) {
+            bind(key, value);
+        }
     }
 
     private static SharedPreferences getPrefs(boolean configType) {
@@ -101,6 +118,7 @@ public final class AppScope {
             SharedPreferences prefs = getPrefs(key.isConfigType());
             prefs.edit().remove(key.getName()).apply();
         }
+        for (EventListener listener : listeners) listener.onRemove(key);
     }
 
     public static <T> boolean has(TypedKey<T> key) {
