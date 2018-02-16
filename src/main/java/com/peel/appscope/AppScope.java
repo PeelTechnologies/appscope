@@ -93,11 +93,8 @@ public final class AppScope {
     }
 
     private static SharedPreferences getPrefs(boolean configType) {
-        if (configType) {
-            return context.getSharedPreferences(prefsClearOnResetFileName, Context.MODE_PRIVATE);
-        } else {
-            return context.getSharedPreferences(prefsPersistOnResetFileName, Context.MODE_PRIVATE);
-        }
+        String fileName = configType ? prefsPersistOnResetFileName : prefsClearOnResetFileName;
+        return context.getSharedPreferences(fileName, Context.MODE_PRIVATE);
     }
 
     public static <T> void bindProvider(TypedKey<T> key, InstanceProvider<T> value) {
