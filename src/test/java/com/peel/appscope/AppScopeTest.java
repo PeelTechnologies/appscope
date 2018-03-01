@@ -57,7 +57,7 @@ public class AppScopeTest {
         SharedPreferences configPrefs = createMockSharedPreferences(context);
         Mockito.when(context.getSharedPreferences(AppScope.DEFAULT_PREFS_CLEAR_ON_RESET_FILE, Context.MODE_PRIVATE)).thenReturn(persistPrefs);
         Mockito.when(context.getSharedPreferences(AppScope.DEFAULT_PREFS_PERSIST_ON_RESET_FILE, Context.MODE_PRIVATE)).thenReturn(configPrefs);
-        AppScope.TestAccess.reconfigure(context, gson);
+        AppScope.TestAccess.init(context, gson);
     }
 
     @Test
@@ -119,7 +119,7 @@ public class AppScopeTest {
         TypedKey<String> key = new TypedKey<>("userId", String.class, false, false);
         AppScope.bind(key, "a");
         assertEquals("a", AppScope.get(key));
-        AppScope.TestAccess.reconfigure(context, gson);
+        AppScope.TestAccess.init(context, gson);
         assertFalse(AppScope.has(key));
     }
 
@@ -128,7 +128,7 @@ public class AppScopeTest {
         TypedKey<String> key = new TypedKey<>("key", String.class, false, true);
         AppScope.bind(key, "a");
         assertEquals("a", AppScope.get(key));
-        AppScope.TestAccess.reconfigure(context, gson);
+        AppScope.TestAccess.init(context, gson);
         assertFalse(AppScope.has(key));
     }
 
@@ -137,7 +137,7 @@ public class AppScopeTest {
         TypedKey<String> key = new TypedKey<>("userId", String.class, true, true);
         AppScope.bind(key, "a");
         assertEquals("a", AppScope.get(key));
-        AppScope.TestAccess.reconfigure(context, gson);
+        AppScope.TestAccess.init(context, gson);
         assertFalse(AppScope.has(key));
     }
 

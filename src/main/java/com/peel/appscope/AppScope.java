@@ -60,11 +60,11 @@ public final class AppScope {
     private static String prefsClearOnResetFileName;
     private static String prefsPersistOnResetFileName;
 
-    public static void configure(Context context, Gson gson) {
-        configure(context, gson, DEFAULT_PREFS_CLEAR_ON_RESET_FILE, DEFAULT_PREFS_PERSIST_ON_RESET_FILE);
+    public static void init(Context context, Gson gson) {
+        init(context, gson, DEFAULT_PREFS_CLEAR_ON_RESET_FILE, DEFAULT_PREFS_PERSIST_ON_RESET_FILE);
     }
 
-    public static void configure(Context context, Gson gson, String prefsClearOnResetFileName,
+    public static void init(Context context, Gson gson, String prefsClearOnResetFileName,
             String prefsPersistOnResetFileName) {
         AppScope.context = context;
         AppScope.gson = gson;
@@ -201,8 +201,9 @@ public final class AppScope {
     }
 
     public static final class TestAccess {
-        public static void reconfigure(Context context, Gson gson) {
-            configure(context, gson);
+        /** initializes AppScope by clearing out any past settings */
+        public static void init(Context context, Gson gson) {
+            AppScope.init(context, gson);
             clear();
         }
 
