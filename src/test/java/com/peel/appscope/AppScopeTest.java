@@ -19,6 +19,8 @@ import static org.junit.Assert.*;
 
 import org.junit.Test;
 
+import com.google.gson.Gson;
+
 /**
  * Unit tests for {@link AppScope}
  *
@@ -28,8 +30,7 @@ public class AppScopeTest {
 
     @Test
     public void booleanDefaultValueOnGet() {
-        TypedKey<Boolean> testKey = new TypedKey<>("testKey",
-                Boolean.class, false, false);
+        TypedKey<Boolean> testKey = new TypedKey<>("testKey", Boolean.class, false, false);
         AppScope.remove(testKey);
         assertFalse(AppScope.get(testKey));
         AppScope.bind(testKey, true);
@@ -55,5 +56,16 @@ public class AppScopeTest {
         assertNotEquals("19999999999", "16506953562");
         assertNotEquals("16506953562", AppScope.get(key));
         assertEquals("19999999999", AppScope.get(key));
+    }
+
+    @Test
+    public void testTestAccessReconfigure() throws Exception {
+        TypedKey<String> key = new TypedKey<>("userId", String.class, false, false);
+        Gson gson = new Gson();
+        AppScope.configure(null, gson);
+        AppScope.bind(key, "a");
+        assertEquals("a", AppScope.get(key));
+        AppScope.TestAccess.reconfigure(null, gson);
+        assertFalse(AppScope.has(key));
     }
 }

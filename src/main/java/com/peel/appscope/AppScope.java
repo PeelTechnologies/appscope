@@ -190,9 +190,15 @@ public final class AppScope {
     }
 
     public static final class TestAccess {
+        public static void reconfigure(Context context, Gson gson) {
+            clear();
+            configure(context, gson);
+        }
+
         public static void clear() {
             instances.clear();
             providers.clear();
+            listeners.clear();
         }
     }
 }
