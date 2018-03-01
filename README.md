@@ -8,4 +8,4 @@ An Android library implementing Service Locator pattern
         maven { url "https://jitpack.io" }
     }
     ```
-* In your app build.gradle, add:  ```compile "com.github.PeelTechnologies:appscope:1.4.0"```
+* In your app build.gradle, add:  ```compile "com.github.PeelTechnologies:appscope:1.5.0"```
