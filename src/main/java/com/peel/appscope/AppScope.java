@@ -33,6 +33,10 @@ import android.content.SharedPreferences;
  * @author Inderjeet Singh
  */
 public final class AppScope {
+
+    static final String DEFAULT_PREFS_CLEAR_ON_RESET_FILE = "persistent_props";
+    static final String DEFAULT_PREFS_PERSIST_ON_RESET_FILE = "config_props";
+
     public interface EventListener {
         <T> void onBind(TypedKey<T> key, T value);
         <T> void onRemove(TypedKey<T> key);
@@ -57,7 +61,7 @@ public final class AppScope {
     private static String prefsPersistOnResetFileName;
 
     public static void configure(Context context, Gson gson) {
-    	configure(context, gson,"persistent_props", "config_props");
+        configure(context, gson, DEFAULT_PREFS_CLEAR_ON_RESET_FILE, DEFAULT_PREFS_PERSIST_ON_RESET_FILE);
     }
 
     public static void configure(Context context, Gson gson, String prefsClearOnResetFileName,
@@ -69,7 +73,7 @@ public final class AppScope {
     }
 
     public static Context context() {
-    	return context;
+        return context;
     }
 
     public static <T> void bind(TypedKey<T> key, T value) {
@@ -166,13 +170,17 @@ public final class AppScope {
         return has(key) ? get(key) : defaultValue;
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public static synchronized void reset() {
+    public static void reset() {
+        reset(false);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static synchronized void reset(boolean resetConfigKeys) {
         Iterator<Map.Entry<TypedKey, Object>> iterator = instances.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<TypedKey, Object> entry = iterator.next();
             TypedKey key = entry.getKey();
-            if (!key.isConfigType()) {
+            if (!key.isConfigType() || resetConfigKeys) {
                 try {
                     iterator.remove();
                 } catch (Exception ignored) {}
@@ -183,6 +191,9 @@ public final class AppScope {
         }
 
         getPrefs(false).edit().clear().apply();
+        if (resetConfigKeys) {
+            getPrefs(true).edit().clear().apply();
+        }
 
         for (Object provider : providers.values()) {
             ((InstanceProvider)provider).update(null); // clear all the values
@@ -191,11 +202,12 @@ public final class AppScope {
 
     public static final class TestAccess {
         public static void reconfigure(Context context, Gson gson) {
-            clear();
             configure(context, gson);
+            clear();
         }
 
         public static void clear() {
+            reset(true);
             instances.clear();
             providers.clear();
             listeners.clear();
