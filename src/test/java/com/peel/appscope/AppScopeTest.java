@@ -21,6 +21,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -80,6 +81,58 @@ public class AppScopeTest {
     }
 
     @Test
+    public void testBindProvider() throws Exception {
+        final InstanceProvider<String> instanceProvider = new InstanceProvider<String>() {
+            private String value = "a";
+            @Override public void update(String value) {
+                this.value = value;
+            }
+            @Override public String get() {
+                return value;
+            }
+        };
+        TypedKey<String> key = new TypedKey<>("key", String.class, false, false);
+        AppScope.bindProvider(key, instanceProvider);
+        assertEquals("a", AppScope.get(key));
+    }
+
+    @Test
+    public void testBindProviderCantBeUsedWithPersistableKeys() throws Exception {
+        TypedKey<String> key = new TypedKey<>("key", String.class, false, true);
+        try {
+            AppScope.bindProvider(key, new InstanceProvider<String>() {
+                private String value = "a";
+                @Override public void update(String value) {
+                    this.value = value;
+                }
+                @Override public String get() {
+                    return value;
+                }
+            });
+            fail();
+        } catch (Exception expected) {}
+    }
+
+    @Test
+    public void testBindProviderWithInstanceProvider() throws Exception {
+        TypedKey<String> key = new TypedKey<String>("key", String.class, false, true) {
+            @Override public InstanceProvider<String> getProvider() {
+                return new InstanceProvider<String>() {
+                    private String value = "a";
+                    @Override public void update(String value) {
+                        this.value = value;
+                    }
+                    @Override public String get() {
+                        return value;
+                    }
+                };
+            }
+        };
+        AppScope.bind(key, "b");
+        assertEquals("b", AppScope.get(key));
+    }
+
+    @Test
     public void testBindIfNew() throws Exception {
         TypedKey<String> key = new TypedKey<>("userId", String.class, false, false);
         AppScope.bind(key, "19999999999");
@@ -99,6 +152,46 @@ public class AppScopeTest {
         AppScope.reset();
         assertFalse(AppScope.has(persist));
         assertFalse(AppScope.has(nonPersist));
+    }
+
+    @Test
+    public void testResetDoesntClearsConfigProviderProperties() throws Exception {
+        TypedKey<String> key1 = new TypedKey<>("key1", String.class, false, false);
+        TypedKey<String> key2 = new TypedKey<>("key2", String.class, true, false);
+        AppScope.bindProvider(key1, new StringProvider("a"));
+        AppScope.bindProvider(key2, new StringProvider("b"));
+
+        // AppScope.reset() shouldn't clear config provider properties
+        AppScope.reset();
+        assertNull(AppScope.get(key1));
+        assertEquals("b", AppScope.get(key2));
+
+        // TestAccess.init should clear all properties
+        AppScope.bindProvider(key1, new StringProvider("c"));
+        AppScope.bindProvider(key2, new StringProvider("d"));
+        AppScope.TestAccess.reset();
+        assertNull(AppScope.get(key1));
+        assertNull(AppScope.get(key2));
+    }
+
+    @Test
+    public void testResetIgnoresBrokenProviders() throws Exception {
+        TypedKey<String> key1 = new TypedKey<>("key1", String.class, false, false);
+        AppScope.bindProvider(key1, new InstanceProvider<String>() {
+            private String value = "a";
+            @Override public String get() {
+                return value;
+            }
+            @Override public void update(String value) {
+                throw new IllegalStateException();
+            }
+        });
+        TypedKey<String> key2 = new TypedKey<>("key2", String.class, false, false);
+        AppScope.bind(key2, "b");
+        AppScope.TestAccess.init(context, gson);
+
+        assertNull(AppScope.get(key1));
+        assertNull(AppScope.get(key2));
     }
 
     @Test
@@ -214,5 +307,21 @@ public class AppScopeTest {
                 };
             }
         };
+    }
+
+    private static final class StringProvider implements InstanceProvider<String> {
+        private String value;
+
+        public StringProvider(String value) {
+            this.value = value;
+        }
+
+        @Override public void update(String value) {
+            this.value = value;
+        }
+
+        @Override public String get() {
+            return value;
+        }
     }
 }

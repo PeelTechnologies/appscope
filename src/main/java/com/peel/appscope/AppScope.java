@@ -54,7 +54,7 @@ public final class AppScope {
     @SuppressWarnings("rawtypes")
     private static final Map<TypedKey, Object> instances = new ConcurrentHashMap<>();
     @SuppressWarnings("rawtypes")
-    private static final Map<TypedKey, Object> providers = new ConcurrentHashMap<>();
+    private static final Map<TypedKey, InstanceProvider> providers = new ConcurrentHashMap<>();
     private static Context context;
     private static Gson gson;
     private static String prefsClearOnResetFileName;
@@ -183,20 +183,25 @@ public final class AppScope {
             if (!key.isConfigType() || resetConfigKeys) {
                 try {
                     iterator.remove();
+                    if (key.hasProvider()) {
+                        key.getProvider().update(null); // clear all the values
+                    }
                 } catch (Exception ignored) {}
             }
-            if (key.hasProvider()) {
-                key.getProvider().update(null); // clear all the values
-            }
         }
-
         getPrefs(false).edit().clear().apply();
         if (resetConfigKeys) {
             getPrefs(true).edit().clear().apply();
         }
 
-        for (Object provider : providers.values()) {
-            ((InstanceProvider)provider).update(null); // clear all the values
+        for (Map.Entry<TypedKey, InstanceProvider> entry : providers.entrySet()) {
+            TypedKey key = entry.getKey();
+            if (!key.isConfigType() || resetConfigKeys) {
+                InstanceProvider provider = entry.getValue();
+                try {
+                    provider.update(null); // clear all the values
+                } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -204,11 +209,11 @@ public final class AppScope {
         /** initializes AppScope by clearing out any past settings */
         public static void init(Context context, Gson gson) {
             AppScope.init(context, gson);
-            clear();
+            reset();
         }
 
-        public static void clear() {
-            reset(true);
+        public static void reset() {
+            AppScope.reset(true);
             instances.clear();
             providers.clear();
             listeners.clear();
