@@ -9,3 +9,5 @@ An Android library implementing Service Locator pattern
     }
     ```
 * In your app build.gradle, add:  ```compile "com.github.PeelTechnologies:appscope:1.7.1"```
+
+If you use Amplitude, also checkout [appscope-amplitude-extension](https://github.com/PeelTechnologies/appscope-amplitude-extension) project to automatically sync AppScope properties with Amplitude.
