@@ -110,6 +110,8 @@ public final class AppScope {
 
     /**
      * Removes a provider as well as any registered instances with this name
+     * @param <T> the type of the {@code TypedKey}
+     * @param key the key that was previously bound as an instance or a provider. If the key was not bound previously, nothing is done
      */
     public static <T> void remove(TypedKey<T> key) {
         instances.remove(key);
@@ -133,6 +135,9 @@ public final class AppScope {
 
     /**
      * Returns a provider for the key if it was registered.
+     * @param <T> the type of the {@code TypedKey}
+     * @param key the key that was previously bound with an {@code InstanceProvider} or returns true for {@code TypedKey#hasProvider()}.
+     * @return Returns a provider for the key if it was registered previously or if the key supports one
      */
     @SuppressWarnings("unchecked")
     public static <T> InstanceProvider<T> getProvider(TypedKey<T> key) {
@@ -206,7 +211,14 @@ public final class AppScope {
     }
 
     public static final class TestAccess {
-        /** initializes AppScope by clearing out any past settings */
+        /** 
+         * initializes AppScope by clearing out any past settings. This is useful for tests
+         * to ensure AppScope side-effects from other test invocations are cleared out for
+         * this test.
+         * 
+         * @param context the context to set while reinitializing AppScope
+         * @param gson the Gson instance to set while reinitializing AppScope
+         */
         public static void init(Context context, Gson gson) {
             AppScope.init(context, gson);
             reset();

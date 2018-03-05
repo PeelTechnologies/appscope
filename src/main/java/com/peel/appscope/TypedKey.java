@@ -36,13 +36,15 @@ public class TypedKey<T> {
 
     /**
      * @param name Ensure that this name is Unique.
+     * @param clazz the type of this key
      */
     public TypedKey(String name, Class<T> clazz) {
         this(name, clazz, false, false);
     }
 
     /**
-     * @param name Ensure that this name is Unique.
+     * @param name Ensure that this name is unique
+     * @param clazz the type of this key
      * @param config If true, this property is considered to be an app configuration property
      *   that will not be erased on app reset.
      * @param persist whether to save this property on disk as JSON and reload on app restart.
@@ -81,7 +83,10 @@ public class TypedKey<T> {
         return getProvider() != null;
     }
 
-    /** Override this method to provide a custom provider */
+    /**
+     * Override this method to provide a custom provider
+     * @return the custom {@code InstanceProvider} associated with this key
+     */
     public InstanceProvider<T> getProvider() {
         return null;
     }
