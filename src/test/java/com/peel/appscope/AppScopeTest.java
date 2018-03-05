@@ -23,14 +23,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
@@ -53,7 +48,7 @@ public class AppScopeTest {
 
     @Before
     public void setUp() {
-        context = createMockContext();
+        context = AndroidFixtures.createMockContext();
         AppScope.TestAccess.init(context, gson);
     }
 
@@ -246,91 +241,5 @@ public class AppScopeTest {
         public String get() {
             return value;
         }
-    }
-
-    private static Context createMockContext() {
-        Context context = Mockito.mock(Context.class);
-        SharedPreferences persistPrefs = createMockSharedPreferences(context);
-        SharedPreferences configPrefs = createMockSharedPreferences(context);
-        Mockito.when(context.getSharedPreferences(AppScope.DEFAULT_PREFS_CLEAR_ON_RESET_FILE, Context.MODE_PRIVATE))
-                .thenReturn(persistPrefs);
-        Mockito.when(context.getSharedPreferences(AppScope.DEFAULT_PREFS_PERSIST_ON_RESET_FILE, Context.MODE_PRIVATE))
-                .thenReturn(configPrefs);
-        return context;
-    }
-
-    private static SharedPreferences createMockSharedPreferences(Context context) {
-        final Map<String, Object> map = new HashMap<>();
-        return new SharedPreferences() {
-            @Override public void unregisterOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener listener) {}
-            @Override public void registerOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener listener) {}
-            @SuppressWarnings("unchecked") private <T> T get(String key, T defValue) {
-                return map.containsKey(key) ? (T) map.get(key) : defValue;
-            }
-            @Override public Set<String> getStringSet(String key, Set<String> defValues) {
-                return get(key, defValues);
-            }
-            @Override public String getString(String key, String defValue) {
-                return get(key, defValue);
-            }
-            @Override public long getLong(String key, long defValue) {
-                return get(key, defValue);
-            }
-            @Override public int getInt(String key, int defValue) {
-                return get(key, defValue);
-            }
-            @Override public float getFloat(String key, float defValue) {
-                return get(key, defValue);
-            }
-            @Override public boolean getBoolean(String key, boolean defValue) {
-                return get(key, defValue);
-            }
-            @Override public Map<String, ?> getAll() {
-                return map;
-            }
-            @Override public boolean contains(String key) {
-                return map.containsKey(key);
-            }
-            @Override public Editor edit() {
-                return new Editor() {
-                    @Override public Editor remove(String key) {
-                        map.remove(key);
-                        return this;
-                    }
-                    @Override public Editor putStringSet(String key, Set<String> values) {
-                        map.put(key, values);
-                        return this;
-                    }
-                    @Override public Editor putString(String key, String value) {
-                        map.put(key, value);
-                        return this;
-                    }
-                    @Override public Editor putLong(String key, long value) {
-                        map.put(key, value);
-                        return this;
-                    }
-                    @Override public Editor putInt(String key, int value) {
-                        map.put(key, value);
-                        return this;
-                    }
-                    @Override public Editor putFloat(String key, float value) {
-                        map.put(key, value);
-                        return this;
-                    }
-                    @Override public Editor putBoolean(String key, boolean value) {
-                        map.put(key, value);
-                        return this;
-                    }
-                    @Override public boolean commit() {
-                        return true;
-                    }
-                    @Override public Editor clear() {
-                        map.clear();
-                        return this;
-                    }
-                    @Override public void apply() {} // no op
-                };
-            }
-        };
     }
 }
