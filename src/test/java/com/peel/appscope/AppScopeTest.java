@@ -45,7 +45,7 @@ import android.content.SharedPreferences;
  * @author Inderjeet Singh
  */
 @RunWith(PowerMockRunner.class)
-@PrepareForTest( { Context.class })
+@PrepareForTest({ Context.class, SharedPreferences.class })
 public class AppScopeTest {
 
     private Context context;
@@ -53,11 +53,7 @@ public class AppScopeTest {
 
     @Before
     public void setUp() {
-        context = Mockito.mock(Context.class);
-        SharedPreferences persistPrefs = createMockSharedPreferences(context);
-        SharedPreferences configPrefs = createMockSharedPreferences(context);
-        Mockito.when(context.getSharedPreferences(AppScope.DEFAULT_PREFS_CLEAR_ON_RESET_FILE, Context.MODE_PRIVATE)).thenReturn(persistPrefs);
-        Mockito.when(context.getSharedPreferences(AppScope.DEFAULT_PREFS_PERSIST_ON_RESET_FILE, Context.MODE_PRIVATE)).thenReturn(configPrefs);
+        context = createMockContext();
         AppScope.TestAccess.init(context, gson);
     }
 
@@ -234,13 +230,42 @@ public class AppScopeTest {
         assertFalse(AppScope.has(key));
     }
 
-    private SharedPreferences createMockSharedPreferences(Context context) {
+    private static final class StringProvider implements InstanceProvider<String> {
+        private String value;
+
+        public StringProvider(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public void update(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public String get() {
+            return value;
+        }
+    }
+
+    private static Context createMockContext() {
+        Context context = Mockito.mock(Context.class);
+        SharedPreferences persistPrefs = createMockSharedPreferences(context);
+        SharedPreferences configPrefs = createMockSharedPreferences(context);
+        Mockito.when(context.getSharedPreferences(AppScope.DEFAULT_PREFS_CLEAR_ON_RESET_FILE, Context.MODE_PRIVATE))
+                .thenReturn(persistPrefs);
+        Mockito.when(context.getSharedPreferences(AppScope.DEFAULT_PREFS_PERSIST_ON_RESET_FILE, Context.MODE_PRIVATE))
+                .thenReturn(configPrefs);
+        return context;
+    }
+
+    private static SharedPreferences createMockSharedPreferences(Context context) {
         final Map<String, Object> map = new HashMap<>();
         return new SharedPreferences() {
             @Override public void unregisterOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener listener) {}
             @Override public void registerOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener listener) {}
             @SuppressWarnings("unchecked") private <T> T get(String key, T defValue) {
-                return map.containsKey(key) ? (T) map.get(key) : defValue; 
+                return map.containsKey(key) ? (T) map.get(key) : defValue;
             }
             @Override public Set<String> getStringSet(String key, Set<String> defValues) {
                 return get(key, defValues);
@@ -307,21 +332,5 @@ public class AppScopeTest {
                 };
             }
         };
-    }
-
-    private static final class StringProvider implements InstanceProvider<String> {
-        private String value;
-
-        public StringProvider(String value) {
-            this.value = value;
-        }
-
-        @Override public void update(String value) {
-            this.value = value;
-        }
-
-        @Override public String get() {
-            return value;
-        }
     }
 }
