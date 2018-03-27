@@ -25,6 +25,7 @@ import com.google.gson.Gson;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.LruCache;
 
 /**
  * This class provides services to hold data in application scope. It is used to pass global
@@ -52,6 +53,9 @@ public final class AppScope {
     }
 
     @SuppressWarnings("rawtypes")
+    private static LruCache<TypedKey, Object> persistentInstancesCache;
+
+    @SuppressWarnings("rawtypes")
     private static final Map<TypedKey, Object> instances = new ConcurrentHashMap<>();
     @SuppressWarnings("rawtypes")
     private static final Map<TypedKey, InstanceProvider> providers = new ConcurrentHashMap<>();
@@ -61,15 +65,16 @@ public final class AppScope {
     private static String prefsPersistOnResetFileName;
 
     public static void init(Context context, Gson gson) {
-        init(context, gson, DEFAULT_PREFS_CLEAR_ON_RESET_FILE, DEFAULT_PREFS_PERSIST_ON_RESET_FILE);
+        init(context, gson, DEFAULT_PREFS_CLEAR_ON_RESET_FILE, DEFAULT_PREFS_PERSIST_ON_RESET_FILE, 20);
     }
 
     public static void init(Context context, Gson gson, String prefsClearOnResetFileName,
-            String prefsPersistOnResetFileName) {
+            String prefsPersistOnResetFileName, int maxPersistentItemsInMemory) {
         AppScope.context = context;
         AppScope.gson = gson;
         AppScope.prefsClearOnResetFileName = prefsClearOnResetFileName;
         AppScope.prefsPersistOnResetFileName = prefsPersistOnResetFileName;
+        AppScope.persistentInstancesCache = new LruCache<>(maxPersistentItemsInMemory);
     }
 
     public static Context context() {
@@ -77,8 +82,8 @@ public final class AppScope {
     }
 
     public static <T> void bind(TypedKey<T> key, T value) {
-        instances.put(key, value);
         if (key.isPersistable()) {
+            persistentInstancesCache.put(key, value);
             if (key.hasProvider()) { // delegate to the provider
                 key.getProvider().update(value);
             } else {
@@ -86,6 +91,8 @@ public final class AppScope {
                 SharedPreferences prefs = getPrefs(key.isConfigType());
                 prefs.edit().putString(key.getName(), json).apply();
             }
+        } else {
+            instances.put(key, value);
         }
         for (EventListener listener : listeners) listener.onBind(key, value);
     }
@@ -114,18 +121,22 @@ public final class AppScope {
      * @param key the key that was previously bound as an instance or a provider. If the key was not bound previously, nothing is done
      */
     public static <T> void remove(TypedKey<T> key) {
-        instances.remove(key);
         providers.remove(key);
-
         if (key.isPersistable()) {
+            persistentInstancesCache.remove(key);
             SharedPreferences prefs = getPrefs(key.isConfigType());
             prefs.edit().remove(key.getName()).apply();
+        } else {
+            instances.remove(key);
         }
         for (EventListener listener : listeners) listener.onRemove(key);
     }
 
     public static <T> boolean has(TypedKey<T> key) {
         boolean has = instances.containsKey(key) || providers.containsKey(key) || key.hasProvider();
+        if (key.isPersistable()) {
+            has = has || persistentInstancesCache.get(key) != null;
+        }
         if (!has && key.isPersistable()) {
             SharedPreferences prefs = getPrefs(key.isConfigType());
             has = prefs.contains(key.getName());
@@ -154,7 +165,7 @@ public final class AppScope {
 
     @SuppressWarnings("unchecked")
     public static <T> T get(TypedKey<T> key) {
-        T instance = (T) instances.get(key);
+        T instance = key.isPersistable() ? (T) persistentInstancesCache.get(key) : (T) instances.get(key);
         if (instance == null) {
             InstanceProvider<T> provider = (InstanceProvider<T>) providers.get(key);
             if (provider == null) provider = key.getProvider();
@@ -181,6 +192,7 @@ public final class AppScope {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static synchronized void reset(boolean resetConfigKeys) {
+        persistentInstancesCache.evictAll();
         Iterator<Map.Entry<TypedKey, Object>> iterator = instances.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<TypedKey, Object> entry = iterator.next();
@@ -224,8 +236,20 @@ public final class AppScope {
             reset();
         }
 
+        static void init(Context context, Gson gson, String prefsClearOnResetFileName,
+                String prefsPersistOnResetFileName, int maxPersistentItemsInMem) {
+            AppScope.init(context, gson, prefsClearOnResetFileName,
+                    prefsPersistOnResetFileName, maxPersistentItemsInMem);
+            reset();
+        }
+
+        static int getPersistentInMemoryCacheSize() {
+            return persistentInstancesCache.size();
+        }
+
         public static void reset() {
             AppScope.reset(true);
+            persistentInstancesCache.evictAll();
             instances.clear();
             providers.clear();
             listeners.clear();
