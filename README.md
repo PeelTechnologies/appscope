@@ -27,3 +27,12 @@ repositories {
 In your app build.gradle, add:  `compile "com.github.PeelTechnologies:appscope:1.7.4"`
 
 If you use Amplitude, also checkout [appscope-amplitude-extension](https://github.com/PeelTechnologies/appscope-amplitude-extension) project to automatically sync AppScope properties with Amplitude.
+
+# User Guide
+TypedKey can take arbitrarily complex Java object that Gson can serialize/deserialize. For example, `TypedKey<Customer>` may represent a class with nested fields for `Address`, name, phone numbers, etc.
+
+While defining TypedKeys, set `config` constructor parameter to `true` if you want the key to not be cleared when AppScope.reset() is called.
+
+For Junit tests, use `AppScope.TestAccess.init()` method in `setUp()`. This is to ensure that any values set by other tests will get cleared
+
+Any key that is marked as persistent, is stored in an LRU cache and discarded (after persisting) to conserve memory.
