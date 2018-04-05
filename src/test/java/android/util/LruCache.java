@@ -118,7 +118,11 @@ public class LruCache<K, V> {
     }
 
     public final synchronized Map<K, V> snapshot() {
-        return null;
+        Map<K, V> snapshot = new HashMap<>();
+        for (Map.Entry<K, CacheEntry> entry : map.entrySet()) {
+            snapshot.put(entry.getKey(), entry.getValue().item);
+        }
+        return snapshot;
     }
 
     public final synchronized String toString() {

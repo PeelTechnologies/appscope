@@ -113,6 +113,34 @@ public class ResetFunctionalTest {
         assertFalse(AppScope.has(nonConfigPersist));
     }
 
+    @Test
+    public void testResetUpdatesProviderAsWellForABoundInstance() throws Exception {
+        TypedKey<String> country = new TypedKey<String>("country", String.class, false, true) {
+            private final InstanceProvider<String> provider = new InstanceProvider<String>() {
+                private static final String defaultCountry = "US";
+                private String value = defaultCountry;
+                @Override public void update(String country) {
+                    this.value = country == null ? defaultCountry : country;
+                }
+                @Override public String get() {
+                    return value;
+                }
+            };
+            @Override public InstanceProvider<String> getProvider() {
+                return provider;
+            }
+        };
+
+        String defaultCountryCode = AppScope.get(country);
+        AppScope.bind(country, "FR");
+        assertEquals("FR", AppScope.get(country));
+        AppScope.reset();
+
+        assertEquals(defaultCountryCode, AppScope.get(country));
+        AppScope.bind(country, "IN");
+        assertEquals("IN", AppScope.get(country));
+    }
+
     private static final class StringProvider implements InstanceProvider<String> {
         private String value;
 

@@ -192,6 +192,14 @@ public final class AppScope {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static synchronized void reset(boolean resetConfigKeys) {
+        // before clearing the cache, reset the providers contained in it
+        // TODO: We still don't handle the following case: If a previously bound key (with a provider)
+        // has been evicted from the cache, it's provider needs reset as well.
+        // Hopefully, that is a marginal case that we can ignore.
+        for (Map.Entry<TypedKey, Object> entry : persistentInstancesCache.snapshot().entrySet()) {
+            TypedKey key = entry.getKey();
+            if (key.hasProvider()) key.getProvider().update(null);
+        }
         persistentInstancesCache.evictAll();
         Iterator<Map.Entry<TypedKey, Object>> iterator = instances.entrySet().iterator();
         while (iterator.hasNext()) {
