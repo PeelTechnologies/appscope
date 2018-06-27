@@ -25,6 +25,59 @@ import java.lang.reflect.Type;
  */
 public class TypedKey<T> {
 
+    public static final class Builder<R> {
+        private final String name;
+        private final Type type;
+        private boolean config;
+        private boolean persist;
+        private boolean memoryResident;
+        public Builder(String name, Type type) {
+            this.name = name;
+            this.type = type;
+        }
+        public Builder(String name, Class<R> clazz) {
+            this(name, (Type) clazz);
+        }
+
+        /**
+         * Configure whether {@ link AppScope#reset()} will wipe out this key or not
+         * @param survive If true, {@ link AppScope#reset()} will not delete this key
+         * @return the builder
+         */
+        public Builder<R> survivesReset(boolean survive) {
+            this.config = survive;
+            return this;
+        }
+
+        public Builder<R> persistable(boolean persist) {
+            this.persist = persist;
+            return this;
+        }
+
+        /**
+         * Whether this key will be kept and reused from memory, or will always be
+         * reloaded from the disk. Note that you must set {@code #persist(boolean) as true
+         * if you call this method with {@code false} argument. This is because the key
+         * can't be written out to disk.
+         * If the key has a provider or is bound to a provider, memoryResident has no effect
+         * since the key is served by the provider.
+         *
+         * @param memoryResident whether the key can stay in memory. If false, the key is only stored in prefs
+         * @return the builder
+         * @throws IllegalArgumentException if the key is not yet marked persistable but memoryResident is false.
+         */
+        public Builder<R> memoryResident(boolean memoryResident) throws IllegalArgumentException {
+            if (!memoryResident && !persist) {
+                throw new IllegalArgumentException("memoryResident can be false only if persist is set to true!");
+            }
+            this.memoryResident = memoryResident;
+            return this;
+        }
+        public TypedKey<R> build() {
+            return new TypedKey<R>(type, name, config, persist, memoryResident);
+        }
+    }
+
     public static <R> TypedKey<R> of(String name, Type type, boolean config, boolean persist) {
         return new TypedKey<R>(type, name, config, persist);
     }
@@ -33,6 +86,7 @@ public class TypedKey<T> {
     private final Type type;
     private final boolean config;
     private final boolean persist;
+    private final boolean memoryResident;
 
     /**
      * @param name Ensure that this name is Unique.
@@ -50,17 +104,22 @@ public class TypedKey<T> {
      * @param persist whether to save this property on disk as JSON and reload on app restart.
      */
     public TypedKey(String name, Class<T> clazz, boolean config, boolean persist) {
-        this.name = name;
-        this.type = clazz;
-        this.config = config;
-        this.persist = persist;
+        this(clazz, name, config, persist, true);
     }
 
     private TypedKey(Type type, String name, boolean config, boolean persist) {
+        this(type, name, config, persist, true);
+    }
+
+    private TypedKey(Type type, String name, boolean config, boolean persist, boolean memoryResident) {
+        if (!memoryResident && !persist) {
+            throw new IllegalArgumentException("memoryResident can be false only if persist is set to true!");
+        }
         this.name = name;
         this.type = type;
         this.config = config;
         this.persist = persist;
+        this.memoryResident = memoryResident;
     }
 
     public String getName() {
@@ -73,6 +132,10 @@ public class TypedKey<T> {
 
     public boolean isConfigType() {
         return config;
+    }
+
+    public boolean isMemoryResident() {
+        return memoryResident;
     }
 
     public boolean isPersistable() {
