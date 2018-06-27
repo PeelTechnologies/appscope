@@ -133,7 +133,7 @@ public final class AppScope {
     }
 
     public static <T> boolean has(TypedKey<T> key) {
-        boolean has = instances.containsKey(key) || providers.containsKey(key) || key.hasProvider();
+        boolean has = instances.containsKey(key) || providers.containsKey(key) || key.hasProvider() || key.hasFactory();
         if (key.isPersistable()) {
             has = has || persistentInstancesCache.get(key) != null;
         }
@@ -175,6 +175,10 @@ public final class AppScope {
                 String json = prefs.getString(key.getName(), null);
                 instance = gson.fromJson(json, key.getTypeOfValue());
             }
+        }
+        if (instance == null && key.hasFactory()) {
+            instance = key.getFactory().create();
+            bind(key, instance);
         }
         if (instance == null && key.getTypeOfValue() == Boolean.class) {
             return (T) Boolean.FALSE; // default value for Boolean to avoid NPE for flags

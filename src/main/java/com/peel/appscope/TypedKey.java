@@ -83,11 +83,19 @@ public class TypedKey<T> {
         return getProvider() != null;
     }
 
+    public boolean hasFactory() {
+        return getFactory() != null;
+    }
+
     /**
      * Override this method to provide a custom provider
      * @return the custom {@code InstanceProvider} associated with this key
      */
     public InstanceProvider<T> getProvider() {
+        return null;
+    }
+
+    public InstanceFactory<T> getFactory() {
         return null;
     }
 
