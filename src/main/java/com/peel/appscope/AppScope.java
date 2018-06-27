@@ -83,7 +83,9 @@ public final class AppScope {
 
     public static <T> void bind(TypedKey<T> key, T value) {
         if (key.isPersistable()) {
-            persistentInstancesCache.put(key, value);
+            if (key.isMemoryResident()) {
+                persistentInstancesCache.put(key, value);
+            }
             if (key.hasProvider()) { // delegate to the provider
                 key.getProvider().update(value);
             } else {
