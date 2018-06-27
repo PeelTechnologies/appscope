@@ -17,7 +17,6 @@ package com.peel.appscope;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.fail;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -64,19 +63,7 @@ public class MemoryResidentTest {
     @Test
     public void testMemoryResidentWithPersistableKey() {
         TypedKey<String> key = new TypedKey.Builder<>("testKey", String.class)
-                .persistable(true)
-                .memoryResident(true)
-                .build();
-        AppScope.bind(key, "19999999999");
-        AppScope.get(key);
-        assertNull(keyGet); // get didn't access pref
-    }
-
-    @Test
-    public void testMemoryResidentWithNonPersistableKey() {
-        TypedKey<String> key = new TypedKey.Builder<>("testKey", String.class)
-                .persistable(false)
-                .memoryResident(true)
+                .persist()
                 .build();
         AppScope.bind(key, "19999999999");
         AppScope.get(key);
@@ -86,23 +73,10 @@ public class MemoryResidentTest {
     @Test
     public void testNonMemoryResidentWithPersistableKey() {
         TypedKey<String> key = new TypedKey.Builder<>("testKey", String.class)
-                .persistable(true)
-                .memoryResident(false)
+                .persist(false)
                 .build();
         AppScope.bind(key, "19999999999");
         AppScope.get(key);
         assertEquals(key.getName(), keyGet); // get must access prefs
-    }
-
-    @Test
-    public void testNonMemoryResidentWithNonPersistableKeyFails() {
-        try {
-            new TypedKey.Builder<>("testKey", String.class)
-                .persistable(false)
-                .memoryResident(false)
-                .build();
-            fail();
-        } catch (IllegalArgumentException expected) { // a non persistable key must be kept in memory
-        }
     }
 }

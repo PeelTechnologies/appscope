@@ -25,16 +25,18 @@ import java.lang.reflect.Type;
  */
 public class TypedKey<T> {
 
-    public static final class Builder<R> {
-        private final String name;
-        private final Type type;
-        private boolean config;
-        private boolean persist;
-        private boolean memoryResident;
+    public static class Builder<R> {
+        protected final String name;
+        protected final Type type;
+        protected boolean config;
+        protected boolean persist;
+        protected boolean cacheableInMemory = true;
+
         public Builder(String name, Type type) {
             this.name = name;
             this.type = type;
         }
+
         public Builder(String name, Class<R> clazz) {
             this(name, (Type) clazz);
         }
@@ -44,49 +46,44 @@ public class TypedKey<T> {
          * @param survive If true, {@ link AppScope#reset()} will not delete this key
          * @return the builder
          */
-        public Builder<R> survivesReset(boolean survive) {
-            this.config = survive;
-            return this;
-        }
-
-        public Builder<R> persistable(boolean persist) {
-            this.persist = persist;
+        public Builder<R> survivesReset() {
+            this.config = true;
             return this;
         }
 
         /**
-         * Whether this key will be kept and reused from memory, or will always be
-         * reloaded from the disk. Note that you must set {@code #persist(boolean) as true
-         * if you call this method with {@code false} argument. This is because the key
-         * can't be written out to disk.
-         * If the key has a provider or is bound to a provider, memoryResident has no effect
-         * since the key is served by the provider.
+         * Call this method to indicate that this key is to be persisted on disk.
          *
-         * @param memoryResident whether the key can stay in memory. If false, the key is only stored in prefs
          * @return the builder
-         * @throws IllegalArgumentException if the key is not yet marked persistable but memoryResident is false.
          */
-        public Builder<R> memoryResident(boolean memoryResident) throws IllegalArgumentException {
-            if (!memoryResident && !persist) {
-                throw new IllegalArgumentException("memoryResident can be false only if persist is set to true!");
-            }
-            this.memoryResident = memoryResident;
+        public Builder<R> persist() {
+            return persist(true);
+        }
+
+        /**
+         * Call this method to indicate that this key is to be persisted on disk.
+         *
+         * @param cacheableInMemory whether this key/value can be cached in memory.
+         *   If false, the key is only stored in prefs and reloaded from it every time.
+         *   Most keys should set this to true.
+         * @return the builder
+         */
+        public Builder<R> persist(boolean cacheableInMemory) {
+            this.persist = true;
+            this.cacheableInMemory = cacheableInMemory;
             return this;
         }
-        public TypedKey<R> build() {
-            return new TypedKey<R>(type, name, config, persist, memoryResident);
-        }
-    }
 
-    public static <R> TypedKey<R> of(String name, Type type, boolean config, boolean persist) {
-        return new TypedKey<R>(type, name, config, persist);
+        public TypedKey<R> build() {
+            return new TypedKey<R>(type, name, config, persist, cacheableInMemory);
+        }
     }
 
     private final String name;
     private final Type type;
     private final boolean config;
     private final boolean persist;
-    private final boolean memoryResident;
+    private final boolean cacheableInMemory;
 
     /**
      * @param name Ensure that this name is Unique.
@@ -107,19 +104,15 @@ public class TypedKey<T> {
         this(clazz, name, config, persist, true);
     }
 
-    private TypedKey(Type type, String name, boolean config, boolean persist) {
-        this(type, name, config, persist, true);
-    }
-
-    private TypedKey(Type type, String name, boolean config, boolean persist, boolean memoryResident) {
-        if (!memoryResident && !persist) {
-            throw new IllegalArgumentException("memoryResident can be false only if persist is set to true!");
+    protected TypedKey(Type type, String name, boolean config, boolean persist, boolean cacheableInMemory) {
+        if (!cacheableInMemory && !persist) { // Precondition check
+            throw new IllegalArgumentException("cacheableInMemory can be false only if persist is set to true!");
         }
         this.name = name;
         this.type = type;
         this.config = config;
         this.persist = persist;
-        this.memoryResident = memoryResident;
+        this.cacheableInMemory = cacheableInMemory;
     }
 
     public String getName() {
@@ -134,8 +127,8 @@ public class TypedKey<T> {
         return config;
     }
 
-    public boolean isMemoryResident() {
-        return memoryResident;
+    public boolean isCacheableInMemory() {
+        return cacheableInMemory;
     }
 
     public boolean isPersistable() {
