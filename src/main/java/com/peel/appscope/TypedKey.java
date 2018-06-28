@@ -21,6 +21,7 @@ import java.lang.reflect.Type;
  * A typed key
  *
  * @param <T> Intended type of the content for the key
+ *
  * @author Inderjeet Singh
  */
 public class TypedKey<T> {
@@ -42,8 +43,7 @@ public class TypedKey<T> {
         }
 
         /**
-         * Configure whether {@ link AppScope#reset()} will wipe out this key or not
-         * @param survive If true, {@ link AppScope#reset()} will not delete this key
+         * Configure that {@link AppScope#reset()} will not wipe out this key
          * @return the builder
          */
         public Builder<R> survivesReset() {
