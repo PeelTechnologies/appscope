@@ -17,6 +17,8 @@ package com.peel.appscope;
 
 import java.lang.reflect.Type;
 
+import com.google.gson.reflect.TypeToken;
+
 /**
  * A typed key
  *
@@ -33,20 +35,21 @@ public class TypedKey<T> {
         protected boolean persist;
         protected boolean cacheableInMemory = true;
 
-        public Builder(String name, Type type) {
+        public Builder(String name, TypeToken<R> type) {
             this.name = name;
-            this.type = type;
+            this.type = type.getType();
         }
 
         public Builder(String name, Class<R> clazz) {
-            this(name, (Type) clazz);
+            this.name = name;
+            this.type = clazz;
         }
 
         /**
          * Configure that {@link AppScope#reset()} will not wipe out this key
          * @return the builder
          */
-        public Builder<R> survivesReset() {
+        public Builder<R> surviveReset() {
             this.config = true;
             return this;
         }
