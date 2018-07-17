@@ -26,7 +26,7 @@ repositories {
 
 In your app build.gradle, add:  `compile "com.github.PeelTechnologies:appscope:2.0.0"`
 
-If you use Amplitude, also checkout [appscope-amplitude-extension](https://github.com/PeelTechnologies/appscope-amplitude-extension) project to automatically sync AppScope properties with Amplitude.
+If you use Amplitude, also checkout [android-typesafe-prefs-amplitude](https://github.com/PeelTechnologies/android-typesafe-prefs-amplitude) project to automatically sync AppScope properties with Amplitude.
 
 # User Guide
 TypedKey can take arbitrarily complex Java object that Gson can serialize/deserialize. For example, `TypedKey<Customer>` may represent a class with nested fields for `Address`, name, phone numbers, etc.
