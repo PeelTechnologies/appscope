@@ -15,6 +15,8 @@
  */
 package com.peel.appscope;
 
+import static com.peel.appscope.AppScope.NON_PERSISTENT;
+import static com.peel.appscope.AppScope.SURVIVE_RESET;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -27,9 +29,11 @@ import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 import com.google.gson.Gson;
+import com.peel.prefs.TypedKey;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
 
 /**
  * Functional tests for reset related use-cases for {@link AppScope}
@@ -37,7 +41,7 @@ import android.content.SharedPreferences;
  * @author Inderjeet Singh
  */
 @RunWith(PowerMockRunner.class)
-@PrepareForTest({ Context.class, SharedPreferences.class })
+@PrepareForTest({Context.class, SharedPreferences.class, PreferenceManager.class})
 public class ResetFunctionalTest {
 
     private Context context;
@@ -51,21 +55,23 @@ public class ResetFunctionalTest {
 
     @Test
     public void testResetClearsPersistentProperties() throws Exception {
-        TypedKey<String> persist = new TypedKey<>("persist", String.class, false, true);
-        TypedKey<String> nonPersist = new TypedKey<>("nonPersist", String.class, false, false);
-        AppScope.bind(persist, "a");
-        AppScope.bind(nonPersist, "b");
+        TypedKey<String> persist = new TypedKey<>("persist", String.class);
+        TypedKey<String> nonPersist = new TypedKey<>("nonPersist", String.class, NON_PERSISTENT);
+        AppScope.put(persist, "a");
+        AppScope.put(nonPersist, "b");
         AppScope.reset();
-        assertFalse(AppScope.has(persist));
-        assertFalse(AppScope.has(nonPersist));
+        assertFalse(AppScope.contains(persist));
+        assertFalse(AppScope.contains(nonPersist));
     }
 
     @Test
     public void testResetDoesntClearsConfigProviderProperties() throws Exception {
-        TypedKey<String> key1 = new TypedKey<>("key1", String.class, false, false);
-        TypedKey<String> key2 = new TypedKey<>("key2", String.class, true, false);
-        AppScope.bindProvider(key1, new StringProvider("a"));
-        AppScope.bindProvider(key2, new StringProvider("b"));
+        TypedKeyWithProvider<String> key1 = new TypedKeyWithProvider<String>("key1", String.class,
+                new StringProvider("a"), NON_PERSISTENT);
+        TypedKeyWithProvider<String> key2 = new TypedKeyWithProvider<String>("key2", String.class,
+                new StringProvider("b"), SURVIVE_RESET, NON_PERSISTENT) ;
+        AppScope.register(key1);
+        AppScope.register(key2);
 
         // AppScope.reset() shouldn't clear config provider properties
         AppScope.reset();
@@ -73,8 +79,10 @@ public class ResetFunctionalTest {
         assertEquals("b", AppScope.get(key2));
 
         // TestAccess.init should clear all properties
-        AppScope.bindProvider(key1, new StringProvider("c"));
-        AppScope.bindProvider(key2, new StringProvider("d"));
+        key1.getProvider().update("c");
+        assertEquals("c", AppScope.get(key1));
+        key2.getProvider().update("d");
+        assertEquals("d", AppScope.get(key2));
         AppScope.TestAccess.reset();
         assertNull(AppScope.get(key1));
         assertNull(AppScope.get(key2));
@@ -82,8 +90,7 @@ public class ResetFunctionalTest {
 
     @Test
     public void testResetIgnoresBrokenProviders() throws Exception {
-        TypedKey<String> key1 = new TypedKey<>("key1", String.class, false, false);
-        AppScope.bindProvider(key1, new InstanceProvider<String>() {
+        TypedKeyWithProvider<String> key1 = new TypedKeyWithProvider<String>("key1", String.class, new InstanceProvider<String>() {
             private String value = "a";
             @Override public String get() {
                 return value;
@@ -91,53 +98,50 @@ public class ResetFunctionalTest {
             @Override public void update(String value) {
                 throw new IllegalStateException();
             }
-        });
-        TypedKey<String> key2 = new TypedKey<>("key2", String.class, false, false);
-        AppScope.bind(key2, "b");
+        }, NON_PERSISTENT);
+        AppScope.register(key1);
+        TypedKey<String> key2 = new TypedKey<>("key2", String.class, NON_PERSISTENT);
+        AppScope.put(key2, "b");
         AppScope.TestAccess.init(context, gson);
 
-        assertNull(AppScope.get(key1));
+        assertEquals("a", AppScope.get(key1));
         assertNull(AppScope.get(key2));
     }
 
     @Test
     public void testResetDoesntClearConfigProperties() throws Exception {
-        TypedKey<String> configPersist = new TypedKey<>("configPersist", String.class, true, true);
-        TypedKey<String> configNonPersist = new TypedKey<>("configNonPersist", String.class, true, false);
-        TypedKey<String> nonConfigPersist = new TypedKey<>("nonConfigPersist", String.class, true, true);
-        AppScope.bind(configPersist, "a");
-        AppScope.bind(configNonPersist, "b");
+        TypedKey<String> configPersist = new TypedKey<>("configPersist", String.class, SURVIVE_RESET);
+        TypedKey<String> configNonPersist = new TypedKey<>("configNonPersist", String.class, SURVIVE_RESET, NON_PERSISTENT);
+        TypedKey<String> nonConfigPersist = new TypedKey<>("nonConfigPersist", String.class, SURVIVE_RESET);
+        AppScope.put(configPersist, "a");
+        AppScope.put(configNonPersist, "b");
         AppScope.reset();
-        assertTrue(AppScope.has(configPersist));
-        assertTrue(AppScope.has(configNonPersist));
-        assertFalse(AppScope.has(nonConfigPersist));
+        assertTrue(AppScope.contains(configPersist));
+        assertTrue(AppScope.contains(configNonPersist));
+        assertFalse(AppScope.contains(nonConfigPersist));
     }
 
     @Test
     public void testResetUpdatesProviderAsWellForABoundInstance() throws Exception {
-        TypedKey<String> country = new TypedKey<String>("country", String.class, false, true) {
-            private final InstanceProvider<String> provider = new InstanceProvider<String>() {
-                private static final String defaultCountry = "US";
-                private String value = defaultCountry;
-                @Override public void update(String country) {
-                    this.value = country == null ? defaultCountry : country;
-                }
-                @Override public String get() {
-                    return value;
-                }
-            };
-            @Override public InstanceProvider<String> getProvider() {
-                return provider;
+        TypedKeyWithProvider<String> country = new TypedKeyWithProvider<String>("country", String.class,
+                new InstanceProvider<String>() {
+            private static final String defaultCountry = "US";
+            private String value = defaultCountry;
+            @Override public void update(String country) {
+                this.value = country == null ? defaultCountry : country;
             }
-        };
+            @Override public String get() {
+                return value;
+            }
+        });
 
         String defaultCountryCode = AppScope.get(country);
-        AppScope.bind(country, "FR");
+        AppScope.put(country, "FR");
         assertEquals("FR", AppScope.get(country));
         AppScope.reset();
 
         assertEquals(defaultCountryCode, AppScope.get(country));
-        AppScope.bind(country, "IN");
+        AppScope.put(country, "IN");
         assertEquals("IN", AppScope.get(country));
     }
 

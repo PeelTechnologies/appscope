@@ -17,11 +17,9 @@ package com.peel.appscope;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -30,9 +28,11 @@ import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 import com.google.gson.Gson;
+import com.peel.prefs.TypedKey;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
 
 /**
  * Unit tests for {@link AppScope}
@@ -40,40 +40,60 @@ import android.content.SharedPreferences;
  * @author Inderjeet Singh
  */
 @RunWith(PowerMockRunner.class)
-@PrepareForTest({ Context.class, SharedPreferences.class })
+@PrepareForTest({Context.class, SharedPreferences.class, PreferenceManager.class})
 public class AppScopeTest {
 
     private Context context;
     private static final Gson gson = new Gson();
+    private String keyGet;
+    private String keyPut;
 
     @Before
     public void setUp() {
-        context = AndroidFixtures.createMockContext();
+        keyGet = null;
+        context = AndroidFixtures.createMockContext(new AndroidFixtures.PrefsListener() {
+            @Override public void onGet(String key) {
+                keyGet = key;
+            }
+            @Override public void onPut(String key, Object value) {
+                keyPut = key;
+            }
+        });
         AppScope.TestAccess.init(context, gson);
     }
 
     @Test
     public void booleanDefaultValueOnGet() {
-        TypedKey<Boolean> testKey = new TypedKey<>("testKey", Boolean.class, false, false);
+        TypedKey<Boolean> testKey = new TypedKey<>("testKey", Boolean.class, AppScope.NON_PERSISTENT);
         AppScope.remove(testKey);
         assertFalse(AppScope.get(testKey));
-        AppScope.bind(testKey, true);
+        AppScope.put(testKey, true);
         assertTrue(AppScope.get(testKey));
         AppScope.remove(testKey);
     }
 
     @Test
-    public void testBind() throws Exception {
-        TypedKey<String> key = new TypedKey<>("userId", String.class, false, false);
+    public void testPut() throws Exception {
+        TypedKey<String> key = new TypedKey<>("userId", String.class, AppScope.NON_PERSISTENT);
         assertNull(AppScope.get(key));
-        AppScope.bind(key, "19999999999");
+        AppScope.put(key, "19999999999");
         assertNotNull(AppScope.get(key));
         assertEquals("19999999999", AppScope.get(key));
     }
 
     @Test
-    public void testBindProvider() throws Exception {
-        final InstanceProvider<String> instanceProvider = new InstanceProvider<String>() {
+    public void testPutWithKeyAndClass() throws Exception {
+        assertNull(AppScope.get("k2", String.class));
+        AppScope.put("k2", String.class, "19999999999");
+        assertEquals("k2", keyPut);
+        assertEquals("19999999999", AppScope.get("k2", String.class));
+        assertEquals("k2", keyGet);
+    }
+
+    @Test
+    public void testRegisterProvider() throws Exception {
+        TypedKeyWithProvider<String> key = new TypedKeyWithProvider<String>("key", String.class,
+                new InstanceProvider<String>() {
             private String value = "a";
             @Override public void update(String value) {
                 this.value = value;
@@ -81,83 +101,37 @@ public class AppScopeTest {
             @Override public String get() {
                 return value;
             }
-        };
-        TypedKey<String> key = new TypedKey<>("key", String.class, false, false);
-        AppScope.bindProvider(key, instanceProvider);
+        });
+        AppScope.register(key);
         assertEquals("a", AppScope.get(key));
-    }
-
-    @Test
-    public void testBindProviderCantBeUsedWithPersistableKeys() throws Exception {
-        TypedKey<String> key = new TypedKey<>("key", String.class, false, true);
-        try {
-            AppScope.bindProvider(key, new InstanceProvider<String>() {
-                private String value = "a";
-                @Override public void update(String value) {
-                    this.value = value;
-                }
-                @Override public String get() {
-                    return value;
-                }
-            });
-            fail();
-        } catch (Exception expected) {}
-    }
-
-    @Test
-    public void testBindProviderWithInstanceProvider() throws Exception {
-        TypedKey<String> key = new TypedKey<String>("key", String.class, false, true) {
-            @Override public InstanceProvider<String> getProvider() {
-                return new InstanceProvider<String>() {
-                    private String value = "a";
-                    @Override public void update(String value) {
-                        this.value = value;
-                    }
-                    @Override public String get() {
-                        return value;
-                    }
-                };
-            }
-        };
-        AppScope.bind(key, "b");
+        AppScope.put(key, "b");
         assertEquals("b", AppScope.get(key));
     }
 
     @Test
-    public void testBindIfNew() throws Exception {
-        TypedKey<String> key = new TypedKey<>("userId", String.class, false, false);
-        AppScope.bind(key, "19999999999");
-        assertEquals("19999999999", AppScope.get(key));
-        AppScope.bindIfAbsent(key, "16506953562");
-        assertNotEquals("19999999999", "16506953562");
-        assertNotEquals("16506953562", AppScope.get(key));
-        assertEquals("19999999999", AppScope.get(key));
-    }
-
-    @Test
     public void testTestAccessReconfigure() throws Exception {
-        TypedKey<String> key = new TypedKey<>("userId", String.class, false, false);
-        AppScope.bind(key, "a");
+        TypedKey<String> key = new TypedKey<>("userId", String.class, AppScope.NON_PERSISTENT);
+        AppScope.put(key, "a");
         assertEquals("a", AppScope.get(key));
         AppScope.TestAccess.init(context, gson);
-        assertFalse(AppScope.has(key));
+        assertFalse(AppScope.contains(key));
     }
 
     @Test
     public void testReconfigureClearsPersistentProperties() throws Exception {
-        TypedKey<String> key = new TypedKey<>("key", String.class, false, true);
-        AppScope.bind(key, "a");
+        TypedKey<String> key = new TypedKey<>("key", String.class);
+        AppScope.put(key, "a");
         assertEquals("a", AppScope.get(key));
         AppScope.TestAccess.init(context, gson);
-        assertFalse(AppScope.has(key));
+        assertFalse(AppScope.contains(key));
     }
 
     @Test
     public void testReconfigureClearsConfigProperties() throws Exception {
-        TypedKey<String> key = new TypedKey<>("userId", String.class, true, true);
-        AppScope.bind(key, "a");
+        TypedKey<String> key = new TypedKey<>("userId", String.class, AppScope.SURVIVE_RESET);
+        AppScope.put(key, "a");
         assertEquals("a", AppScope.get(key));
         AppScope.TestAccess.init(context, gson);
-        assertFalse(AppScope.has(key));
+        assertFalse(AppScope.contains(key));
     }
 }

@@ -25,9 +25,11 @@ import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 import com.google.gson.Gson;
+import com.peel.prefs.TypedKey;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
 
 /**
  * Unit tests for {@link AppScope}
@@ -35,7 +37,7 @@ import android.content.SharedPreferences;
  * @author Inderjeet Singh
  */
 @RunWith(PowerMockRunner.class)
-@PrepareForTest({Context.class, SharedPreferences.class})
+@PrepareForTest({Context.class, SharedPreferences.class, PreferenceManager.class})
 public class MemoryResidentTest {
 
     private Context context;
@@ -47,8 +49,6 @@ public class MemoryResidentTest {
     public void setUp() {
         keyGet = null;
         context = AndroidFixtures.createMockContext(new AndroidFixtures.PrefsListener() {
-            @Override public void onRemove(String key) {}
-            @Override public void onPut(String key, Object value) {}
             @Override public void onGet(String key) {
                 keyGet = key;
             }
@@ -62,20 +62,16 @@ public class MemoryResidentTest {
 
     @Test
     public void testMemoryResidentWithPersistableKey() {
-        TypedKey<String> key = new TypedKey.Builder<>("testKey", String.class)
-                .persist()
-                .build();
-        AppScope.bind(key, "19999999999");
+        TypedKey<String> key = new TypedKey<>("testKey", String.class);
+        AppScope.put(key, "19999999999");
         AppScope.get(key);
         assertNull(keyGet); // get didn't access pref
     }
 
     @Test
     public void testNonMemoryResidentWithPersistableKey() {
-        TypedKey<String> key = new TypedKey.Builder<>("testKey", String.class)
-                .persist(false)
-                .build();
-        AppScope.bind(key, "19999999999");
+        TypedKey<String> key = new TypedKey<>("testKey", String.class, false);
+        AppScope.put(key, "19999999999");
         AppScope.get(key);
         assertEquals(key.getName(), keyGet); // get must access prefs
     }

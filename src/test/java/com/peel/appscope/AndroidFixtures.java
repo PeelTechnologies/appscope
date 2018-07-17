@@ -20,9 +20,11 @@ import java.util.Map;
 import java.util.Set;
 
 import org.mockito.Mockito;
+import org.powermock.api.mockito.PowerMockito;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
 
 /**
  * Utility class to provide mocks for various Android library classes
@@ -30,10 +32,11 @@ import android.content.SharedPreferences;
  * @author Inderjeet Singh
  */
 public class AndroidFixtures {
-    public interface PrefsListener {
-        public void onGet(String key);
-        public void onPut(String key, Object value);
-        public void onRemove(String key);
+    public static class PrefsListener {
+        public void onGet(String key) {}
+        public void onPut(String key, Object value) {}
+        public void onRemove(String key) {}
+        public void onInit(SharedPreferences persistPrefs, SharedPreferences configPrefs) {}
     }
 
     public static Context createMockContext() {
@@ -42,10 +45,13 @@ public class AndroidFixtures {
 
     public static Context createMockContext(PrefsListener listener) {
         Context context = Mockito.mock(Context.class);
-        SharedPreferences persistPrefs = createMockSharedPreferences(context, listener);
-        SharedPreferences configPrefs = createMockSharedPreferences(context, listener);
-        Mockito.when(context.getSharedPreferences("persistent_props", Context.MODE_PRIVATE)).thenReturn(persistPrefs);
-        Mockito.when(context.getSharedPreferences("config_props", Context.MODE_PRIVATE)).thenReturn(configPrefs);
+        final SharedPreferences userPrefs = createMockSharedPreferences(context, listener);
+        SharedPreferences appPrefs = createMockSharedPreferences(context, listener);
+        Mockito.when(context.getSharedPreferences(AppScope.DEFAULT_USER_PREFS_FILE, Context.MODE_PRIVATE)).thenReturn(userPrefs);
+        Mockito.when(context.getSharedPreferences(AppScope.DEFAULT_APP_PREFS_FILE, Context.MODE_PRIVATE)).thenReturn(appPrefs);
+        PowerMockito.mockStatic(PreferenceManager.class);
+        Mockito.when(PreferenceManager.getDefaultSharedPreferences(context)).thenReturn(userPrefs);
+        if (listener != null) listener.onInit(userPrefs, appPrefs);
         return context;
     }
 

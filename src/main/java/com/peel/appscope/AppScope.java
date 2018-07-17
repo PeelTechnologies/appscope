@@ -16,16 +16,18 @@
 package com.peel.appscope;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import com.google.gson.Gson;
+import com.peel.prefs.Prefs;
+import com.peel.prefs.TypedKey;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.util.LruCache;
 
 /**
  * This class provides services to hold data in application scope. It is used to pass global
@@ -34,235 +36,186 @@ import android.util.LruCache;
  * @author Inderjeet Singh
  */
 public final class AppScope {
+    public static final String SURVIVE_RESET = "surviveReset";
+    /** The addition/removal of these keys will not be reported back in the listener */
+    public static final String NON_PERSISTENT = "nonPersistent";
 
-    static final String DEFAULT_PREFS_CLEAR_ON_RESET_FILE = "persistent_props";
-    static final String DEFAULT_PREFS_PERSIST_ON_RESET_FILE = "config_props";
 
-    public interface EventListener {
-        <T> void onBind(TypedKey<T> key, T value);
-        <T> void onRemove(TypedKey<T> key);
-    }
-    private static final List<EventListener> listeners = new ArrayList<>();
+    static final String DEFAULT_USER_PREFS_FILE = "user_prefs";
+    static final String DEFAULT_APP_PREFS_FILE = "app_prefs";
 
-    public static void addListener(EventListener listener) {
-        listeners.add(listener);
-    }
-
-    public static void removeListener(EventListener listener) {
-        listeners.remove(listener);
-    }
-
-    @SuppressWarnings("rawtypes")
-    private static LruCache<TypedKey, Object> persistentInstancesCache;
-
-    @SuppressWarnings("rawtypes")
-    private static final Map<TypedKey, Object> instances = new ConcurrentHashMap<>();
-    @SuppressWarnings("rawtypes")
-    private static final Map<TypedKey, InstanceProvider> providers = new ConcurrentHashMap<>();
-    private static Context context;
-    private static Gson gson;
-    private static String prefsClearOnResetFileName;
-    private static String prefsPersistOnResetFileName;
+    @SuppressLint("StaticFieldLeak")
+    private static Prefs userPrefs;
+    @SuppressLint("StaticFieldLeak")
+    private static Prefs appPrefs;
+    private static final Map<TypedKey<?>, Object> nonPersistentPrefs = new ConcurrentHashMap<>();
+    private static final Set<TypedKeyWithProvider<?>> keysWithProviders = new CopyOnWriteArraySet<>();
 
     public static void init(Context context, Gson gson) {
-        init(context, gson, DEFAULT_PREFS_CLEAR_ON_RESET_FILE, DEFAULT_PREFS_PERSIST_ON_RESET_FILE, 20);
+        init(context, gson, DEFAULT_USER_PREFS_FILE, DEFAULT_APP_PREFS_FILE, 20);
     }
 
-    public static void init(Context context, Gson gson, String prefsClearOnResetFileName,
-            String prefsPersistOnResetFileName, int maxPersistentItemsInMemory) {
-        AppScope.context = context;
-        AppScope.gson = gson;
-        AppScope.prefsClearOnResetFileName = prefsClearOnResetFileName;
-        AppScope.prefsPersistOnResetFileName = prefsPersistOnResetFileName;
-        AppScope.persistentInstancesCache = new LruCache<>(maxPersistentItemsInMemory);
+    public static void init(Context context, Gson gson,
+            String persistentPrefsFileName, String configPrefsFileName, int cacheSize) {
+        userPrefs = new Prefs(context, gson, persistentPrefsFileName, cacheSize);
+        appPrefs = new Prefs(context, gson, configPrefsFileName, cacheSize);
+    }
+
+    public static void addListener(Prefs.EventListener listener) {
+        userPrefs.addListener(listener);
+        appPrefs.addListener(listener);
+        // non persistent items can't be listened to
+    }
+
+    public static void removeListener(Prefs.EventListener listener) {
+        userPrefs.removeListener(listener);
+        appPrefs.removeListener(listener);
     }
 
     public static Context context() {
-        return context;
+        return userPrefs.context();
     }
 
+    public static<T> void register(TypedKeyWithProvider<T> key) {
+        keysWithProviders.add(key);
+    }
+
+    /** Deprecated. Use {@code #put(TypedKey, Object)} instead. */
+    @Deprecated
     public static <T> void bind(TypedKey<T> key, T value) {
-        if (key.isPersistable()) {
-            if (key.isCacheableInMemory()) {
-                persistentInstancesCache.put(key, value);
-            }
-            if (key.hasProvider()) { // delegate to the provider
-                key.getProvider().update(value);
-            } else {
-                String json = gson.toJson(value);
-                SharedPreferences prefs = getPrefs(key.isConfigType());
-                prefs.edit().putString(key.getName(), json).apply();
-            }
+        put(key, value);
+    }
+
+    public static <T> void put(TypedKey<T> key, T value) {
+        if (key instanceof TypedKeyWithProvider) {
+            TypedKeyWithProvider<T> key1 = (TypedKeyWithProvider<T>) key;
+            InstanceProvider<T> provider = key1.getProvider();
+            if (provider == null) throw new IllegalArgumentException(key + " must have a non-null provider!");
+            provider.update(value);
+            if (!keysWithProviders.contains(key1)) keysWithProviders.add(key1);
+        } else if (key.containsTag(NON_PERSISTENT)) {
+            nonPersistentPrefs.put(key, value);
+        } else if (key.containsTag(SURVIVE_RESET)) {
+            appPrefs.put(key, value);
         } else {
-            instances.put(key, value);
-        }
-        for (EventListener listener : listeners) listener.onBind(key, value);
-    }
-
-    public static <R> void bindIfAbsent(TypedKey<R> key, R value) {
-        if (!has(key)) {
-            bind(key, value);
+            userPrefs.put(key, value);
         }
     }
 
-    private static SharedPreferences getPrefs(boolean configType) {
-        String fileName = configType ? prefsPersistOnResetFileName : prefsClearOnResetFileName;
-        return context.getSharedPreferences(fileName, Context.MODE_PRIVATE);
+    public static <T> void put(String keyName, Class<T> keyClass, T value) {
+        userPrefs.put(keyName, keyClass, value);
     }
 
-    public static <T> void bindProvider(TypedKey<T> key, InstanceProvider<T> value) {
-        // Keys bound with providers shouldn't be persistable since the provider is responsible
-        // for providing the value.
-        if(key.isPersistable()) throw new IllegalArgumentException(key + " can't be persistable for bindProvider() to work");
-        providers.put(key, value);
-    }
-
-    /**
-     * Removes a provider as well as any registered instances with this name
-     * @param <T> the type of the {@code TypedKey}
-     * @param key the key that was previously bound as an instance or a provider. If the key was not bound previously, nothing is done
-     */
-    public static <T> void remove(TypedKey<T> key) {
-        providers.remove(key);
-        if (key.isPersistable()) {
-            persistentInstancesCache.remove(key);
-            SharedPreferences prefs = getPrefs(key.isConfigType());
-            prefs.edit().remove(key.getName()).apply();
-        } else {
-            instances.remove(key);
-        }
-        for (EventListener listener : listeners) listener.onRemove(key);
-    }
-
+    /** Use {@code #contains(TypedKey) instead. */
+    @Deprecated
     public static <T> boolean has(TypedKey<T> key) {
-        boolean has = instances.containsKey(key) || providers.containsKey(key) || key.hasProvider();
-        if (key.isPersistable()) {
-            has = has || persistentInstancesCache.get(key) != null;
-        }
-        if (!has && key.isPersistable()) {
-            SharedPreferences prefs = getPrefs(key.isConfigType());
-            has = prefs.contains(key.getName());
-        }
-        return has;
+        return contains(key);
     }
 
-    /**
-     * Returns a provider for the key if it was registered.
-     * @param <T> the type of the {@code TypedKey}
-     * @param key the key that was previously bound with an {@code InstanceProvider} or returns true for {@code TypedKey#hasProvider()}.
-     * @return Returns a provider for the key if it was registered previously or if the key supports one
-     */
-    @SuppressWarnings("unchecked")
-    public static <T> InstanceProvider<T> getProvider(TypedKey<T> key) {
-        if (key.hasProvider()) {
-            InstanceProvider<T> provider = key.getProvider();
-            if (!providers.containsKey(key)) {
-                providers.put(key, provider); // store for reset actions
-            }
-            return provider;
-        } else {
-            return (InstanceProvider<T>) providers.get(key);
-        }
+    public static <T> boolean contains(TypedKey<T> key) {
+        return nonPersistentPrefs.containsKey(key) || userPrefs.contains(key)
+                || appPrefs.contains(key) || key instanceof TypedKeyWithProvider;
+    }
+
+    public static <T> boolean contains(String keyName, Class<T> keyClass) {
+        TypedKey<T> key = new TypedKey<T>(keyName, keyClass);
+        return has(key);
     }
 
     @SuppressWarnings("unchecked")
     public static <T> T get(TypedKey<T> key) {
-        T instance = key.isPersistable() ? (T) persistentInstancesCache.get(key) : (T) instances.get(key);
+        T instance = null;
+        if (key instanceof TypedKeyWithProvider) {
+            instance = ((TypedKeyWithProvider<T>) key).getProvider().get();
+        }
         if (instance == null) {
-            InstanceProvider<T> provider = (InstanceProvider<T>) providers.get(key);
-            if (provider == null) provider = key.getProvider();
-            if (provider != null) instance = provider.get();
-            if (instance == null && key.isPersistable()) { // see if available in prefs
-                SharedPreferences prefs = getPrefs(key.isConfigType());
-                String json = prefs.getString(key.getName(), null);
-                instance = gson.fromJson(json, key.getTypeOfValue());
+            instance = (T) nonPersistentPrefs.get(key);
+            if (instance == null) {
+                if (userPrefs.contains(key)) instance = userPrefs.get(key); // boolean values get defaulted to false, we don't want that
+                if (instance == null) instance = appPrefs.get(key);
             }
         }
-        if (instance == null && key.getTypeOfValue() == Boolean.class) {
-            return (T) Boolean.FALSE; // default value for Boolean to avoid NPE for flags
-        }
         return instance;
+    }
+
+    public static <T> T get(String keyName, Class<T> keyClass) {
+        TypedKey<T> key = new TypedKey<T>(keyName, keyClass);
+        return get(key);
     }
 
     public static <T> T get(TypedKey<T> key, T defaultValue) {
         return has(key) ? get(key) : defaultValue;
     }
 
+    public static <T> T get(String keyName, Class<T> keyClass, T defaultValue) {
+        TypedKey<T> key = new TypedKey<T>(keyName, keyClass);
+        return get(key, defaultValue);
+    }
+
+    /**
+     * Removes a provider as well as any registered instances with this name
+     * @param <T> the type of the {@code TypedKey}
+     * @param key the key that was previously bound as an instance or a provider.
+     *  If the key was not bound previously, nothing is done
+     */
+    public static <T> void remove(TypedKey<T> key) {
+        nonPersistentPrefs.remove(key);
+        userPrefs.remove(key);
+        appPrefs.remove(key);
+        keysWithProviders.remove(key);
+    }
+
+    public static <T> void remove(String keyName, Class<T> keyClass) {
+        TypedKey<T> key = new TypedKey<T>(keyName, keyClass);
+        remove(key);
+    }
+
     public static void reset() {
         reset(false);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private static synchronized void reset(boolean resetConfigKeys) {
-        // before clearing the cache, reset the providers contained in it
-        // TODO: We still don't handle the following case: If a previously bound key (with a provider)
-        // has been evicted from the cache, it's provider needs reset as well.
-        // Hopefully, that is a marginal case that we can ignore.
-        for (Map.Entry<TypedKey, Object> entry : persistentInstancesCache.snapshot().entrySet()) {
-            TypedKey key = entry.getKey();
-            if (key.hasProvider()) key.getProvider().update(null);
-        }
-        persistentInstancesCache.evictAll();
-        Iterator<Map.Entry<TypedKey, Object>> iterator = instances.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<TypedKey, Object> entry = iterator.next();
-            TypedKey key = entry.getKey();
-            if (!key.isConfigType() || resetConfigKeys) {
+    private static synchronized void reset(boolean reset) {
+        for (TypedKeyWithProvider<?> key : keysWithProviders) {
+            if (reset || !key.containsTag(SURVIVE_RESET)) {
                 try {
-                    iterator.remove();
-                    if (key.hasProvider()) {
-                        key.getProvider().update(null); // clear all the values
-                    }
+                    InstanceProvider<?> provider = key.getProvider();
+                    if (provider != null) provider.update(null);
                 } catch (Exception ignored) {}
             }
         }
-        getPrefs(false).edit().clear().apply();
-        if (resetConfigKeys) {
-            getPrefs(true).edit().clear().apply();
-        }
+        userPrefs.clear();
 
-        for (Map.Entry<TypedKey, InstanceProvider> entry : providers.entrySet()) {
-            TypedKey key = entry.getKey();
-            if (!key.isConfigType() || resetConfigKeys) {
-                InstanceProvider provider = entry.getValue();
-                try {
-                    provider.update(null); // clear all the values
-                } catch (Exception ignored) {}
+        List<TypedKey<?>> toBeRemoved = new ArrayList<>();
+        for (Map.Entry<TypedKey<?>, Object> entry : nonPersistentPrefs.entrySet()) {
+            TypedKey<?> key = entry.getKey();
+            if (!key.containsTag(SURVIVE_RESET)) {
+                toBeRemoved.add(key);
             }
+        }
+        for (TypedKey<?> key : toBeRemoved) {
+            nonPersistentPrefs.remove(key);
         }
     }
 
     public static final class TestAccess {
-        /** 
+        /**
          * initializes AppScope by clearing out any past settings. This is useful for tests
          * to ensure AppScope side-effects from other test invocations are cleared out for
          * this test.
-         * 
+         *
          * @param context the context to set while reinitializing AppScope
          * @param gson the Gson instance to set while reinitializing AppScope
          */
         public static void init(Context context, Gson gson) {
-            AppScope.init(context, gson);
+            AppScope.init(context, gson, DEFAULT_USER_PREFS_FILE, DEFAULT_APP_PREFS_FILE, 10);
             reset();
-        }
-
-        static void init(Context context, Gson gson, String prefsClearOnResetFileName,
-                String prefsPersistOnResetFileName, int maxPersistentItemsInMem) {
-            AppScope.init(context, gson, prefsClearOnResetFileName,
-                    prefsPersistOnResetFileName, maxPersistentItemsInMem);
-            reset();
-        }
-
-        static int getPersistentInMemoryCacheSize() {
-            return persistentInstancesCache.size();
         }
 
         public static void reset() {
             AppScope.reset(true);
-            persistentInstancesCache.evictAll();
-            instances.clear();
-            providers.clear();
-            listeners.clear();
+            nonPersistentPrefs.clear();
+            userPrefs.clear();
+            appPrefs.clear();
         }
     }
 }
